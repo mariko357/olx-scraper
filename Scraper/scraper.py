@@ -1,6 +1,6 @@
 import asyncio
 import aiohttp
-from multiprocessing import Process, Queue
+import multiprocessing
 from bs4 import BeautifulSoup
 
 
@@ -17,27 +17,27 @@ async def getSoupObj(url):
     soup = BeautifulSoup(page, "html.parser")
     return soup
 
-def getSoupObjThreaded(outq, page):
+def getSoupObjThreaded(page, send_end):
     soup = BeautifulSoup(page, "html.parser")
-    outq.put([soup])
+    print(soup)
+    send_end.send(2)
 
 async def getMultipleSoupObj(urls):
     pages = []
     pages = await asyncio.gather(*(getPageContents(i) for i in urls))
-    soups = Queue()
-    rsoups = []
+
     workers = []
-
+    pipes = []
     for i in pages:
-        worker = Process(target=getSoupObjThreaded, args=(soups, i))
+        recv_end, send_end = multiprocessing.Pipe(False)
+        worker = multiprocessing.Process(target=getSoupObjThreaded, args=(i, send_end))
         workers.append(worker)
+        pipes.append(recv_end)
         worker.start()
-
-    for i in workers:
-        temp = soups.get()
-        rsoups.append(temp)
 
     for i in workers:
         i.join()
     
-    return rsoups
+    ret = [x.recv() for x in pipes]
+
+    return ret
