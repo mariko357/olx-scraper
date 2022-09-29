@@ -2,6 +2,7 @@ import asyncio
 import aiohttp
 import multiprocessing
 from bs4 import BeautifulSoup
+import sys
 
 
 async def getPageContents(url):
@@ -17,27 +18,16 @@ async def getSoupObj(url):
     soup = BeautifulSoup(page, "html.parser")
     return soup
 
-def getSoupObjThreaded(page, send_end):
+def getSoupObjThreaded(page):
     soup = BeautifulSoup(page, "html.parser")
-    print(soup)
-    send_end.send(2)
+    return soup
+
 
 async def getMultipleSoupObj(urls):
     pages = []
     pages = await asyncio.gather(*(getPageContents(i) for i in urls))
-
-    workers = []
-    pipes = []
-    for i in pages:
-        recv_end, send_end = multiprocessing.Pipe(False)
-        worker = multiprocessing.Process(target=getSoupObjThreaded, args=(i, send_end))
-        workers.append(worker)
-        pipes.append(recv_end)
-        worker.start()
-
-    for i in workers:
-        i.join()
-    
-    ret = [x.recv() for x in pipes]
-
-    return ret
+    sys.setrecursionlimit(1000000)
+    out = []
+    pool = multiprocessing.Pool()
+    out = pool.map(getSoupObjThreaded, pages)
+    return out
